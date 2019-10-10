@@ -15,7 +15,19 @@ import (
 	"golang.org/x/text/unicode/bidi"
 )
 
-var classNames = map[bidi.Class]string{
+var PARAGRAPH_LEVELS = map[bidi.Class]int{bidi.L: 0, bidi.AL: 1, bidi.R: 1}
+
+const EXPLICIT_LEVEL_LIMIT = 62
+
+func _LEAST_GREATER_ODD(x int) int {
+	return (x + 1) | 1
+}
+
+func _LEAST_GREATER_EVEN(x int) int {
+	return (x + 2) & ^1
+}
+
+var bidiClassNames = map[bidi.Class]string{
 	bidi.L:   "L",
 	bidi.R:   "R",
 	bidi.EN:  "EN",
@@ -44,40 +56,28 @@ var classNames = map[bidi.Class]string{
 	bidi.PDI: "PDI",
 }
 
-var PARAGRAPH_LEVELS = map[string]int{"L": 0, "AL": 1, "R": 1}
-
-const EXPLICIT_LEVEL_LIMIT = 62
-
-func _LEAST_GREATER_ODD(x int) int {
-	return (x + 1) | 1
-}
-
-func _LEAST_GREATER_EVEN(x int) int {
-	return (x + 2) & ^1
-}
-
-var X2_X5_MAPPINGS = map[string]struct {
+var X2_X5_MAPPINGS = map[bidi.Class]struct {
 	f func(int) int
 	s string
 }{
-	"RLE": {_LEAST_GREATER_ODD, "N"},
-	"LRE": {_LEAST_GREATER_EVEN, "N"},
-	"RLO": {_LEAST_GREATER_ODD, "R"},
-	"LRO": {_LEAST_GREATER_EVEN, "L"},
+	bidi.RLE: {_LEAST_GREATER_ODD, "N"},
+	bidi.LRE: {_LEAST_GREATER_EVEN, "N"},
+	bidi.RLO: {_LEAST_GREATER_ODD, "R"},
+	bidi.LRO: {_LEAST_GREATER_EVEN, "L"},
 }
 
 type run struct {
 	sor, eor string
 	start    int
 	length   int
-	Type     string
+	Type     bidi.Class
 }
 
 type Char struct {
 	ch    rune
 	level int
-	Type  string
-	orig  string
+	Type  bidi.Class
+	orig  bidi.Class
 }
 
 type Storage struct {
@@ -88,8 +88,8 @@ type Storage struct {
 }
 
 // Added 'B' so X6 won't execute in that case and X8 will run it's course
-var X6_IGNORED = X2_X5_MAPPINGS_keys().plus("BN", "PDF", "B")
-var X9_REMOVED = X2_X5_MAPPINGS_keys().plus("BN", "PDF")
+var X6_IGNORED = X2_X5_MAPPINGS_keys().plus(bidi.BN, bidi.PDF, bidi.B)
+var X9_REMOVED = X2_X5_MAPPINGS_keys().plus(bidi.BN, bidi.PDF)
 
 func X2_X5_MAPPINGS_keys() stringSet {
 	result := stringSet{}
@@ -100,9 +100,9 @@ func X2_X5_MAPPINGS_keys() stringSet {
 }
 
 // TODO(lutzky): Start stringSet stuff
-type stringSet map[string]bool
+type stringSet map[bidi.Class]bool
 
-func newStringSet(s ...string) stringSet {
+func newStringSet(s ...bidi.Class) stringSet {
 	result := stringSet{}
 	for _, x := range s {
 		result[x] = true
@@ -110,7 +110,7 @@ func newStringSet(s ...string) stringSet {
 	return result
 }
 
-func (ss stringSet) plus(s ...string) stringSet {
+func (ss stringSet) plus(s ...bidi.Class) stringSet {
 	result := newStringSet(s...)
 	for x := range ss {
 		result[x] = true
@@ -173,7 +173,7 @@ func debug_storage(storage *Storage, params debug_params) {
 
 		_types := make([]string, len(storage.chars))
 		for i, _ch := range storage.chars {
-			_types[i] = fmt.Sprintf("%-3s", _ch.Type)
+			_types[i] = fmt.Sprintf("%-3s", bidiClassNames[_ch.Type])
 		}
 
 		for i := 0; i < 3; i++ {
@@ -192,9 +192,9 @@ func debug_storage(storage *Storage, params debug_params) {
 
 }
 
-func bidirectional(_ch rune) string {
+func bidirectional(_ch rune) bidi.Class {
 	prop, _ := bidi.LookupRune(_ch)
-	return classNames[prop.Class()]
+	return prop.Class()
 }
 
 /*
@@ -203,7 +203,7 @@ Get the paragraph base embedding level. Returns 0 for LTR,
 
 `text` a unicode object.
 
-Set `upper_is_rtl` to true to treat upper case chars as strong "R"
+Set `upper_is_rtl` to true to treat upper case chars as strong bidi.R
 for debugging (default: false).
 */
 func get_base_level(text []rune, upper_is_rtl bool) int {
@@ -228,10 +228,10 @@ func get_base_level(text []rune, upper_is_rtl bool) int {
 
 		bidi_type := bidirectional(_ch)
 
-		if bidi_type == "AL" || bidi_type == "R" {
+		if bidi_type == bidi.AL || bidi_type == bidi.R {
 			base_level = 1
 			break
-		} else if bidi_type == "L" {
+		} else if bidi_type == bidi.L {
 			base_level = 0
 			break
 		}
@@ -250,7 +250,7 @@ func get_base_level(text []rune, upper_is_rtl bool) int {
 func get_embedding_levels(text []rune, storage *Storage, upper_is_rtl bool, debug bool) {
 	var prev_surrogate rune
 	base_level := storage.base_level
-	var bidi_type string
+	var bidi_type bidi.Class
 
 	// preset the storage's chars
 	for i, _ch := range text {
@@ -263,7 +263,7 @@ func get_embedding_levels(text []rune, storage *Storage, upper_is_rtl bool, debu
 		}
 
 		if upper_is_rtl && unicode.IsUpper(_ch) {
-			bidi_type = "R"
+			bidi_type = bidi.R
 		} else {
 			bidi_type = bidirectional(_ch)
 		}
@@ -283,6 +283,13 @@ func get_embedding_levels(text []rune, storage *Storage, upper_is_rtl bool, debu
 type levelsType struct {
 	embedding_level      int
 	directional_override string
+}
+
+func runTypeToBidiClass(runType string) bidi.Class {
+	if runType == "R" {
+		return bidi.R
+	}
+	return bidi.L
 }
 
 // Apply X1 to X9 rules of the unicode algorithm.
@@ -329,9 +336,9 @@ func explicit_embed_and_overrides(storage *Storage, debug bool) {
 			if !X6_IGNORED[bidi_type] {
 				storage.chars[i].level = embedding_level
 				if directional_override != "N" {
-					storage.chars[i].Type = directional_override
+					storage.chars[i].Type = runTypeToBidiClass(directional_override)
 				}
-			} else if bidi_type == "PDF" {
+			} else if bidi_type == bidi.PDF {
 				// X7
 				if overflow_counter != 0 {
 					overflow_counter--
@@ -343,7 +350,7 @@ func explicit_embed_and_overrides(storage *Storage, debug bool) {
 					directional_override = lTmp.directional_override
 					levels = levels[:len(levels)-1]
 				}
-			} else if bidi_type == "B" {
+			} else if bidi_type == bidi.B {
 				// X8
 				levels = nil
 				overflow_counter = 0
@@ -413,7 +420,7 @@ func calc_level_runs(storage *Storage) {
 
 	var (
 		curr_level int
-		curr_type  string
+		curr_type  bidi.Class
 	)
 
 	for _, _ch := range chars {
@@ -444,8 +451,8 @@ func calc_level_runs(storage *Storage) {
 // See: http://unicode.org/reports/tr9/#Resolving_Weak_Types
 func resolve_weak_types(storage *Storage, debug bool) {
 	for _, run := range storage.runs {
-		prev_strong := run.sor
-		prev_type := run.sor
+		prev_strong := runTypeToBidiClass(run.sor)
+		prev_type := runTypeToBidiClass(run.sor)
 		start, length := run.start, run.length
 		chars := storage.chars[start : start+length]
 		for i, _ch := range chars {
@@ -455,7 +462,7 @@ func resolve_weak_types(storage *Storage, debug bool) {
 			// of sor.
 			bidi_type := _ch.Type
 
-			if bidi_type == "NSM" {
+			if bidi_type == bidi.NSM {
 				bidi_type = prev_type
 				chars[i].Type = bidi_type
 			}
@@ -463,12 +470,12 @@ func resolve_weak_types(storage *Storage, debug bool) {
 			// W2. Search backward from each instance of a European number until
 			// the first strong type (R, L, AL, or sor) is found. If an AL is
 			// found, change the type of the European number to Arabic number.
-			if bidi_type == "EN" && prev_strong == "AL" {
-				chars[i].Type = "AL"
+			if bidi_type == bidi.EN && prev_strong == bidi.AL {
+				chars[i].Type = bidi.AL
 			}
 
 			// update prev_strong if needed
-			if newStringSet("R", "L", "AL")[bidi_type] {
+			if newStringSet(bidi.R, bidi.L, bidi.AL)[bidi_type] {
 				prev_strong = bidi_type
 			}
 
@@ -477,8 +484,8 @@ func resolve_weak_types(storage *Storage, debug bool) {
 
 		// W3. Change all ALs to R
 		for i, _ch := range chars {
-			if _ch.Type == "AL" {
-				chars[i].Type = "R"
+			if _ch.Type == bidi.AL {
+				chars[i].Type = bidi.R
 			}
 		}
 
@@ -490,12 +497,12 @@ func resolve_weak_types(storage *Storage, debug bool) {
 			prev_type := chars[idx-1].Type
 			next_type := chars[idx+1].Type
 
-			if bidi_type == "ES" && prev_type == "EN" && next_type == "EN" {
-				chars[idx].Type = "EN"
+			if bidi_type == bidi.ES && prev_type == bidi.EN && next_type == bidi.EN {
+				chars[idx].Type = bidi.EN
 			}
 
-			if bidi_type == "CS" && prev_type == next_type &&
-				(prev_type == "AL" || prev_type == "EN") {
+			if bidi_type == bidi.CS && prev_type == next_type &&
+				(prev_type == bidi.AL || prev_type == bidi.EN) {
 				chars[idx].Type = prev_type
 			}
 		}
@@ -503,17 +510,17 @@ func resolve_weak_types(storage *Storage, debug bool) {
 		// W5. A sequence of European terminators adjacent to European numbers
 		// changes to all European numbers.
 		for idx := range chars {
-			if chars[idx].Type == "EN" {
+			if chars[idx].Type == bidi.EN {
 				for et_idx := idx - 1; et_idx > -1; et_idx-- {
-					if chars[et_idx].Type == "ET" {
-						chars[et_idx].Type = "EN"
+					if chars[et_idx].Type == bidi.ET {
+						chars[et_idx].Type = bidi.EN
 					} else {
 						break
 					}
 				}
 				for et_idx := idx + 1; et_idx < len(chars); et_idx++ {
-					if chars[et_idx].Type == "ET" {
-						chars[et_idx].Type = "EN"
+					if chars[et_idx].Type == bidi.ET {
+						chars[et_idx].Type = bidi.EN
 					} else {
 						break
 					}
@@ -523,21 +530,21 @@ func resolve_weak_types(storage *Storage, debug bool) {
 
 		// W6. Otherwise, separators and terminators change to Other Neutral.
 		for i, _ch := range chars {
-			if newStringSet("ET", "ES", "CS")[_ch.Type] {
-				chars[i].Type = "ON"
+			if newStringSet(bidi.ET, bidi.ES, bidi.CS)[_ch.Type] {
+				chars[i].Type = bidi.ON
 			}
 		}
 
 		// W7. Search backward from each instance of a European number until the
 		// first strong type (R, L, or sor) is found. If an L is found, then
 		// change the type of the European number to L.
-		prev_strong = run.sor
+		prev_strong = runTypeToBidiClass(run.sor)
 		for i, _ch := range chars {
-			if _ch.Type == "EN" && prev_strong == "L" {
-				chars[i].Type = "L"
+			if _ch.Type == bidi.EN && prev_strong == bidi.L {
+				chars[i].Type = bidi.L
 			}
 
-			if _ch.Type == "L" || _ch.Type == "R" {
+			if _ch.Type == bidi.L || _ch.Type == bidi.R {
 				prev_strong = _ch.Type
 			}
 		}
@@ -556,19 +563,19 @@ func resolve_neutral_types(storage *Storage, debug bool) {
 		start := run.start
 		length := run.length
 		// use sor and eor
-		chars := []Char{{Type: run.sor}}
+		chars := []Char{{Type: runTypeToBidiClass(run.sor)}}
 		for _, ch := range storage.chars[start : start+length] {
 			chars = append(chars, ch)
 		}
-		chars = append(chars, Char{Type: run.eor})
+		chars = append(chars, Char{Type: runTypeToBidiClass(run.eor)})
 		total_chars := len(chars)
 
-		var prev_bidi_type, next_bidi_type string
+		var prev_bidi_type, next_bidi_type bidi.Class
 
 		seq_start := -1
 		for idx := 0; idx < total_chars; idx++ {
 			_ch := chars[idx]
-			if newStringSet("B", "S", "WS", "ON")[_ch.Type] {
+			if newStringSet(bidi.B, bidi.S, bidi.WS, bidi.ON)[_ch.Type] {
 				// N1. A sequence of neutrals takes the direction of the
 				// surrounding strong text if the text on both sides has the same
 				// direction. European and Arabic numbers act as if they were R
@@ -583,12 +590,12 @@ func resolve_neutral_types(storage *Storage, debug bool) {
 				if seq_start != -1 {
 					next_bidi_type = chars[idx].Type
 
-					if prev_bidi_type == "AN" || prev_bidi_type == "EN" {
-						prev_bidi_type = "R"
+					if prev_bidi_type == bidi.AN || prev_bidi_type == bidi.EN {
+						prev_bidi_type = bidi.R
 					}
 
-					if next_bidi_type == "AN" || next_bidi_type == "EN" {
-						next_bidi_type = "R"
+					if next_bidi_type == bidi.AN || next_bidi_type == bidi.EN {
+						next_bidi_type = bidi.R
 					}
 
 					for seq_idx := seq_start; seq_idx < idx; seq_idx++ {
@@ -601,7 +608,7 @@ func resolve_neutral_types(storage *Storage, debug bool) {
 							// level: L if the character is set to an even level,
 							// and R if the level is odd.
 							storage.chars[start+seq_idx-1].Type =
-								_embedding_direction(chars[seq_idx].level)
+								runTypeToBidiClass(_embedding_direction(chars[seq_idx].level))
 						}
 					}
 
@@ -626,23 +633,23 @@ func resolve_implicit_levels(storage *Storage, debug bool) {
 
 		for i, _ch := range chars {
 			// only those types are allowed at this stage
-			if !newStringSet("L", "R", "EN", "AL")[_ch.Type] {
-				panic(_ch.Type + " not allowed here")
+			if !newStringSet(bidi.L, bidi.R, bidi.EN, bidi.AL)[_ch.Type] {
+				panic(bidiClassNames[_ch.Type] + " not allowed here")
 			}
 
 			if _embedding_direction(_ch.level) == "L" {
 				// I1. For all characters with an even (left-to-right) embedding
 				// direction, those of type R go up one level and those of type
 				// AN or EN go up two levels.
-				if _ch.Type == "R" {
+				if _ch.Type == bidi.R {
 					chars[i].level += 1
-				} else if _ch.Type != "L" {
+				} else if _ch.Type != bidi.L {
 					chars[i].level += 2
 				}
 			} else {
 				// I2. For all characters with an odd (right-to-left) embedding
 				// direction, those of type L, EN or AN  go up one level.
-				if _ch.Type != "R" {
+				if _ch.Type != bidi.R {
 					chars[i].level += 1
 				}
 			}
@@ -708,12 +715,12 @@ func reorder_resolved_levels(storage *Storage, debug bool) {
 		_ch := chars[idx]
 		// L1. On each line, reset the embedding level of the following
 		// characters to the paragraph embedding level:
-		if _ch.orig == "B" || _ch.orig == "S" {
+		if _ch.orig == bidi.B || _ch.orig == bidi.S {
 			// 1. Segment separators,
 			// 2. Paragraph separators,
 			chars[idx].level = storage.base_level
 			should_reset = true
-		} else if should_reset && newStringSet("BN", "WS")[_ch.orig] {
+		} else if should_reset && newStringSet(bidi.BN, bidi.WS)[_ch.orig] {
 			// 3. Any sequence of whitespace characters preceding a segment
 			// separator or paragraph separator
 			// 4. Any sequence of white space characters at the end of the
@@ -747,10 +754,10 @@ func reorder_resolved_levels(storage *Storage, debug bool) {
 			lowest_odd_level = char_level
 		}
 
-		if _ch.orig == "B" || idx == max_len-1 {
+		if _ch.orig == bidi.B || idx == max_len-1 {
 			line_end = idx
 			// omit line breaks
-			if _ch.orig == "B" {
+			if _ch.orig == bidi.B {
 				line_end -= 1
 			}
 
@@ -792,10 +799,10 @@ func apply_mirroring(storage *Storage, debug bool) {
 
 // Accepts a utf-8 string.
 //
-// Set `upper_is_rtl` to true to treat upper case chars as strong "R"
+// Set `upper_is_rtl` to true to treat upper case chars as strong bidi.R
 // for debugging (default: false).
 //
-// Set `base_dir` to "L" or "R" to override the calculated base_level.
+// Set `base_dir` to bidi.L or bidi.R to override the calculated base_level.
 //
 // Set `debug` to true to display (using sys.stderr) the steps taken with the
 // algorithm.
@@ -818,7 +825,7 @@ func get_display(str string, upper_is_rtl bool, base_dir string, debug bool) (_ 
 	if base_dir == "" {
 		base_level = get_base_level(text, upper_is_rtl)
 	} else {
-		base_level = PARAGRAPH_LEVELS[base_dir]
+		base_level = PARAGRAPH_LEVELS[runTypeToBidiClass(base_dir)]
 	}
 
 	storage.base_level = base_level

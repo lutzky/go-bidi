@@ -3,6 +3,8 @@ package bidi
 import (
 	"strings"
 	"testing"
+
+	"golang.org/x/text/unicode/bidi"
 )
 
 type testCase struct {
@@ -167,7 +169,7 @@ func TestSurrogate(t *testing.T) {
 	if _ch.ch != wantChar {
 		t.Errorf("storage.chars[6] = %U; want %U", _ch.ch, wantChar)
 	}
-	if _ch.Type != "EN" {
+	if _ch.Type != bidi.EN {
 		t.Errorf("storage.chars[6].Type = %q; want EN", _ch.Type)
 	}
 
