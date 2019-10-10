@@ -11,7 +11,38 @@ import (
 	"runtime"
 	"strconv"
 	"unicode"
+
+	"golang.org/x/text/unicode/bidi"
 )
+
+var classNames = map[bidi.Class]string{
+	bidi.L:   "L",
+	bidi.R:   "R",
+	bidi.EN:  "EN",
+	bidi.ES:  "ES",
+	bidi.ET:  "ET",
+	bidi.AN:  "AN",
+	bidi.CS:  "CS",
+	bidi.B:   "B",
+	bidi.S:   "S",
+	bidi.WS:  "WS",
+	bidi.ON:  "ON",
+	bidi.BN:  "BN",
+	bidi.NSM: "NSM",
+	bidi.AL:  "AL",
+
+	bidi.Control: "Control",
+
+	bidi.LRO: "LRO",
+	bidi.RLO: "RLO",
+	bidi.LRE: "LRE",
+	bidi.RLE: "RLE",
+	bidi.PDF: "PDF",
+	bidi.LRI: "LRI",
+	bidi.RLI: "RLI",
+	bidi.FSI: "FSI",
+	bidi.PDI: "PDI",
+}
 
 var PARAGRAPH_LEVELS = map[string]int{"L": 0, "AL": 1, "R": 1}
 
@@ -162,7 +193,8 @@ func debug_storage(storage *Storage, params debug_params) {
 }
 
 func bidirectional(_ch rune) string {
-	return Bidirectional[_ch]
+	prop, _ := bidi.LookupRune(_ch)
+	return classNames[prop.Class()]
 }
 
 /*
