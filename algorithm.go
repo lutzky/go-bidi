@@ -87,7 +87,7 @@ type run struct {
 }
 
 type charData struct {
-	ch    rune
+	r     rune
 	level int
 	Type  bidi.Class
 	orig  bidi.Class
@@ -174,20 +174,20 @@ func (s *storage) debug(params debugParams) {
 
 	if !params.noChars {
 		output := "  Chars       : "
-		for _, _ch := range s.chars {
-			output += string(_ch.ch)
+		for _, ch := range s.chars {
+			output += string(ch.r)
 		}
 		fmt.Fprintf(w, output+"\n")
 
 		output = "  Res. levels : "
-		for _, _ch := range s.chars {
-			output += strconv.Itoa(_ch.level)
+		for _, ch := range s.chars {
+			output += strconv.Itoa(ch.level)
 		}
 		fmt.Fprintln(w, output)
 
-		_types := make([]string, len(s.chars))
-		for i, _ch := range s.chars {
-			_types[i] = fmt.Sprintf("%-3s", bidiClassNames[_ch.Type])
+		types := make([]string, len(s.chars))
+		for i, ch := range s.chars {
+			types[i] = fmt.Sprintf("%-3s", bidiClassNames[ch.Type])
 		}
 
 		for i := 0; i < 3; i++ {
@@ -197,8 +197,8 @@ func (s *storage) debug(params debugParams) {
 				output = "  Res. types  : %s\n"
 			}
 			extraOutput := ""
-			for _, _t := range _types {
-				extraOutput += string(_t[i])
+			for _, t := range types {
+				extraOutput += string(t[i])
 			}
 			fmt.Fprintf(w, output, extraOutput)
 		}
@@ -206,8 +206,8 @@ func (s *storage) debug(params debugParams) {
 
 }
 
-func bidirectional(_ch rune) bidi.Class {
-	prop, _ := bidi.LookupRune(_ch)
+func bidirectional(r rune) bidi.Class {
+	prop, _ := bidi.LookupRune(r)
 	return prop.Class()
 }
 
@@ -225,22 +225,22 @@ func getBaseLevel(text []rune, upperIsRTL bool) int {
 	var prevSurrogate rune
 
 	// P2
-	for i, _ch := range text {
+	for i, ch := range text {
 		// surrogate in case of ucs2
-		if isUCS2 && (surrogateMin <= _ch) && (_ch <= surrogateMax) {
-			prevSurrogate = _ch
+		if isUCS2 && (surrogateMin <= ch) && (ch <= surrogateMax) {
+			prevSurrogate = ch
 		} else if prevSurrogate != 0 {
 			text[i] += prevSurrogate
 			prevSurrogate = 0
 		}
 
 		// treat upper as RTL ?
-		if upperIsRTL && unicode.IsUpper(_ch) {
+		if upperIsRTL && unicode.IsUpper(ch) {
 			baseLevel = 1
 			break
 		}
 
-		bidiType := bidirectional(_ch)
+		bidiType := bidirectional(ch)
 
 		if bidiType == bidi.AL || bidiType == bidi.R {
 			baseLevel = 1
@@ -267,23 +267,23 @@ func (s *storage) getEmbeddingLevels(text []rune, upperIsRTL bool) {
 	var bidiType bidi.Class
 
 	// preset the storage's chars
-	for i, _ch := range text {
-		if isUCS2 && (surrogateMin <= _ch) && (_ch <= surrogateMax) {
-			prevSurrogate = _ch
+	for i, r := range text {
+		if isUCS2 && (surrogateMin <= r) && (r <= surrogateMax) {
+			prevSurrogate = r
 			continue
 		} else if prevSurrogate != 0 {
 			text[i] += prevSurrogate
 			prevSurrogate = 0
 		}
 
-		if upperIsRTL && unicode.IsUpper(_ch) {
+		if upperIsRTL && unicode.IsUpper(r) {
 			bidiType = bidi.R
 		} else {
-			bidiType = bidirectional(_ch)
+			bidiType = bidirectional(r)
 		}
 
 		s.chars = append(s.chars, charData{
-			ch:    _ch,
+			r:     r,
 			level: baseLevel,
 			Type:  bidiType,
 			orig:  bidiType,
@@ -316,8 +316,8 @@ func (s *storage) explicitEmbedAndOverrides() {
 	// X1
 	embeddingLevel := s.baseLevel
 
-	for i, _ch := range s.chars {
-		bidiType := _ch.Type
+	for i, ch := range s.chars {
+		bidiType := ch.Type
 
 		levelFunc := x2x5Mappings[bidiType].f
 		override := x2x5Mappings[bidiType].s
@@ -368,7 +368,7 @@ func (s *storage) explicitEmbedAndOverrides() {
 				overflowCounter = 0
 				almostOverflowCounter = 0
 				s.chars[i].level = s.baseLevel
-				embeddingLevel = _ch.level
+				embeddingLevel = ch.level
 				directionalOverride = bidi.Neutral
 			}
 		}
@@ -382,9 +382,9 @@ func (s *storage) explicitEmbedAndOverrides() {
 	{
 		tmp := s.chars
 		s.chars = make([]charData, 0, len(tmp))
-		for _, _ch := range tmp {
-			if !x9Removed[_ch.Type] {
-				s.chars = append(s.chars, _ch)
+		for _, ch := range tmp {
+			if !x9Removed[ch.Type] {
+				s.chars = append(s.chars, ch)
 			}
 		}
 	}
@@ -433,8 +433,8 @@ func (s *storage) calcLevelRuns() {
 		currType  bidi.Class
 	)
 
-	for _, _ch := range chars {
-		currLevel, currType = _ch.level, _ch.Type
+	for _, ch := range chars {
+		currLevel, currType = ch.level, ch.Type
 
 		if currLevel == prevLevel {
 			runLength++
@@ -465,12 +465,12 @@ func (s *storage) resolveWeakTypes() {
 		prevType := directionToClass(run.sor)
 		start, length := run.start, run.length
 		chars := s.chars[start : start+length]
-		for i, _ch := range chars {
+		for i, ch := range chars {
 			// W1. Examine each nonspacing mark (NSM) in the level run, and
 			// change the type of the NSM to the type of the previous character.
 			// If the NSM is at the start of the level run, it will get the type
 			// of sor.
-			bidiType := _ch.Type
+			bidiType := ch.Type
 
 			if bidiType == bidi.NSM {
 				bidiType = prevType
@@ -489,12 +489,12 @@ func (s *storage) resolveWeakTypes() {
 				prevStrong = bidiType
 			}
 
-			prevType = _ch.Type
+			prevType = ch.Type
 		}
 
 		// W3. Change all ALs to R
-		for i, _ch := range chars {
-			if _ch.Type == bidi.AL {
+		for i, ch := range chars {
+			if ch.Type == bidi.AL {
 				chars[i].Type = bidi.R
 			}
 		}
@@ -539,8 +539,8 @@ func (s *storage) resolveWeakTypes() {
 		}
 
 		// W6. Otherwise, separators and terminators change to Other Neutral.
-		for i, _ch := range chars {
-			if newClassSet(bidi.ET, bidi.ES, bidi.CS)[_ch.Type] {
+		for i, ch := range chars {
+			if newClassSet(bidi.ET, bidi.ES, bidi.CS)[ch.Type] {
 				chars[i].Type = bidi.ON
 			}
 		}
@@ -549,13 +549,13 @@ func (s *storage) resolveWeakTypes() {
 		// first strong type (R, L, or sor) is found. If an L is found, then
 		// change the type of the European number to L.
 		prevStrong = directionToClass(run.sor)
-		for i, _ch := range chars {
-			if _ch.Type == bidi.EN && prevStrong == bidi.L {
+		for i, ch := range chars {
+			if ch.Type == bidi.EN && prevStrong == bidi.L {
 				chars[i].Type = bidi.L
 			}
 
-			if _ch.Type == bidi.L || _ch.Type == bidi.R {
-				prevStrong = _ch.Type
+			if ch.Type == bidi.L || ch.Type == bidi.R {
+				prevStrong = ch.Type
 			}
 		}
 	}
@@ -582,8 +582,8 @@ func (s *storage) resolveNeutralTypes() {
 
 		seqStart := -1
 		for idx := 0; idx < totalChars; idx++ {
-			_ch := chars[idx]
-			if newClassSet(bidi.B, bidi.S, bidi.WS, bidi.ON)[_ch.Type] {
+			ch := chars[idx]
+			if newClassSet(bidi.B, bidi.S, bidi.WS, bidi.ON)[ch.Type] {
 				// N1. A sequence of neutrals takes the direction of the
 				// surrounding strong text if the text on both sides has the same
 				// direction. European and Arabic numbers act as if they were R
@@ -637,25 +637,25 @@ func (s *storage) resolveImplicitLevels() {
 		start, length := run.start, run.length
 		chars := s.chars[start : start+length]
 
-		for i, _ch := range chars {
+		for i, ch := range chars {
 			// only those types are allowed at this stage
-			if !newClassSet(bidi.L, bidi.R, bidi.EN, bidi.AL)[_ch.Type] {
-				panic(bidiClassNames[_ch.Type] + " not allowed here")
+			if !newClassSet(bidi.L, bidi.R, bidi.EN, bidi.AL)[ch.Type] {
+				panic(bidiClassNames[ch.Type] + " not allowed here")
 			}
 
-			if embeddingDirection(_ch.level) == bidi.LeftToRight {
+			if embeddingDirection(ch.level) == bidi.LeftToRight {
 				// I1. For all characters with an even (left-to-right) embedding
 				// direction, those of type R go up one level and those of type
 				// AN or EN go up two levels.
-				if _ch.Type == bidi.R {
+				if ch.Type == bidi.R {
 					chars[i].level++
-				} else if _ch.Type != bidi.L {
+				} else if ch.Type != bidi.L {
 					chars[i].level += 2
 				}
 			} else {
 				// I2. For all characters with an odd (right-to-left) embedding
 				// direction, those of type L, EN or AN  go up one level.
-				if _ch.Type != bidi.R {
+				if ch.Type != bidi.R {
 					chars[i].level++
 				}
 			}
@@ -679,31 +679,31 @@ func reverse(x []charData) {
 func reverseContiguousSequence(chars []charData, lineStart, lineEnd, highestLevel,
 	lowestOddLevel int) {
 	for level := highestLevel; level > lowestOddLevel-1; level-- {
-		_start := -1
-		_end := -1
+		start := -1
+		end := -1
 
 		for runIdx := lineStart; runIdx < lineEnd+1; runIdx++ {
 			runCh := chars[runIdx]
 
 			if runCh.level >= level {
-				if _start == -1 {
-					_start = runIdx
-					_end = runIdx
+				if start == -1 {
+					start = runIdx
+					end = runIdx
 				} else {
-					_end = runIdx
+					end = runIdx
 				}
 			} else {
-				if _end != -1 {
-					reverse(chars[_start : _end+1])
-					_start = -1
-					_end = -1
+				if end != -1 {
+					reverse(chars[start : end+1])
+					start = -1
+					end = -1
 				}
 			}
 		}
 
 		// anything remaining ?
-		if _start != -1 {
-			reverse(chars[_start : _end+1])
+		if start != -1 {
+			reverse(chars[start : end+1])
 		}
 	}
 }
@@ -716,15 +716,15 @@ func (s *storage) reorderResolvedLevels() {
 	chars := s.chars
 
 	for idx := len(chars) - 1; idx >= 0; idx-- {
-		_ch := chars[idx]
+		ch := chars[idx]
 		// L1. On each line, reset the embedding level of the following
 		// characters to the paragraph embedding level:
-		if _ch.orig == bidi.B || _ch.orig == bidi.S {
+		if ch.orig == bidi.B || ch.orig == bidi.S {
 			// 1. Segment separators,
 			// 2. Paragraph separators,
 			chars[idx].level = s.baseLevel
 			shouldReset = true
-		} else if shouldReset && newClassSet(bidi.BN, bidi.WS)[_ch.orig] {
+		} else if shouldReset && newClassSet(bidi.BN, bidi.WS)[ch.orig] {
 			// 3. Any sequence of whitespace characters preceding a segment
 			// separator or paragraph separator
 			// 4. Any sequence of white space characters at the end of the
@@ -746,10 +746,10 @@ func (s *storage) reorderResolvedLevels() {
 	lowestOddLevel := explicitLevelLimit
 
 	for idx := 0; idx < maxLen; idx++ {
-		_ch := chars[idx]
+		ch := chars[idx]
 
 		// calc the levels
-		charLevel := _ch.level
+		charLevel := ch.level
 		if charLevel > highestLevel {
 			highestLevel = charLevel
 		}
@@ -758,10 +758,10 @@ func (s *storage) reorderResolvedLevels() {
 			lowestOddLevel = charLevel
 		}
 
-		if _ch.orig == bidi.B || idx == maxLen-1 {
+		if ch.orig == bidi.B || idx == maxLen-1 {
 			lineEnd = idx
 			// omit line breaks
-			if _ch.orig == bidi.B {
+			if ch.orig == bidi.B {
 				lineEnd--
 			}
 
@@ -785,11 +785,10 @@ func (s *storage) applyMirroring() {
 	// L4. A character is depicted by a mirrored glyph if and only if (a) the
 	// resolved directionality of that character is R, and (b) the
 	// Bidi_Mirrored property value of that character is true.
-	for i, _ch := range s.chars {
-		unichar := _ch.ch
-		if embeddingDirection(_ch.level) == bidi.RightToLeft {
-			if m, ok := mirrored[unichar]; ok {
-				s.chars[i].ch = m
+	for i, ch := range s.chars {
+		if embeddingDirection(ch.level) == bidi.RightToLeft {
+			if m, ok := mirrored[ch.r]; ok {
+				s.chars[i].r = m
 			}
 		}
 	}
@@ -842,8 +841,8 @@ func getDisplay(str string, upperIsRTL bool, baseDir bidi.Direction, debug io.Wr
 	chars := s.chars
 
 	display := make([]rune, len(chars))
-	for i, _ch := range chars {
-		display[i] = _ch.ch
+	for i, ch := range chars {
+		display[i] = ch.r
 	}
 
 	return string(display), nil

@@ -167,13 +167,13 @@ func TestSurrogate(t *testing.T) {
 	}
 
 	// Is the expected result ? should be EN
-	_ch := s.chars[6]
+	ch := s.chars[6]
 	wantChar := '\U0001d7f6'
-	if _ch.ch != wantChar {
-		t.Errorf("storage.chars[6] = %U; want %U", _ch.ch, wantChar)
+	if ch.r != wantChar {
+		t.Errorf("storage.chars[6] = %U; want %U", ch.r, wantChar)
 	}
-	if _ch.Type != bidi.EN {
-		t.Errorf("storage.chars[6].Type = %q; want EN", _ch.Type)
+	if ch.Type != bidi.EN {
+		t.Errorf("storage.chars[6].Type = %q; want EN", ch.Type)
 	}
 
 	want := "\U0001d7f612 OLLEH"
