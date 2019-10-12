@@ -135,8 +135,6 @@ func embeddingDirection(x int) bidi.Direction {
 	return []bidi.Direction{bidi.LeftToRight, bidi.RightToLeft}[x%2]
 }
 
-// isUCS2 = sys.maxunicode == 65535
-const isUCS2 = true
 const surrogateMin = 0xd800
 const surrogateMax = 0xdbff
 
@@ -220,22 +218,21 @@ func getBaseLevel(text []rune, upperIsRTL bool) int {
 	var prevSurrogate rune
 
 	// P2
-	for i, ch := range text {
-		// surrogate in case of ucs2
-		if isUCS2 && (surrogateMin <= ch) && (ch <= surrogateMax) {
-			prevSurrogate = ch
+	for i, r := range text {
+		if (surrogateMin <= r) && (r <= surrogateMax) {
+			prevSurrogate = r
 		} else if prevSurrogate != 0 {
 			text[i] += prevSurrogate
 			prevSurrogate = 0
 		}
 
 		// treat upper as RTL ?
-		if upperIsRTL && unicode.IsUpper(ch) {
+		if upperIsRTL && unicode.IsUpper(r) {
 			baseLevel = 1
 			break
 		}
 
-		bidiType := bidirectional(ch)
+		bidiType := bidirectional(r)
 
 		if bidiType == bidi.AL || bidiType == bidi.R {
 			baseLevel = 1
@@ -263,7 +260,7 @@ func (s *storage) getEmbeddingLevels(text []rune, upperIsRTL bool) {
 
 	// preset the storage's chars
 	for i, r := range text {
-		if isUCS2 && (surrogateMin <= r) && (r <= surrogateMax) {
+		if (surrogateMin <= r) && (r <= surrogateMax) {
 			prevSurrogate = r
 			continue
 		} else if prevSurrogate != 0 {
