@@ -568,13 +568,11 @@ func (s *storage) resolveNeutralTypes() {
 			chars = append(chars, ch)
 		}
 		chars = append(chars, charData{Type: directionToClass(run.eor)})
-		totalChars := len(chars)
 
 		var prevBidiType, nextBidiType bidi.Class
 
 		seqStart := -1
-		for idx := 0; idx < totalChars; idx++ {
-			ch := chars[idx]
+		for idx, ch := range chars {
 			if newClassSet(bidi.B, bidi.S, bidi.WS, bidi.ON)[ch.Type] {
 				// N1. A sequence of neutrals takes the direction of the
 				// surrounding strong text if the text on both sides has the same
@@ -727,8 +725,6 @@ func (s *storage) reorderResolvedLevels() {
 		}
 	}
 
-	maxLen := len(chars)
-
 	// L2 should be per line
 	// Calculates highest level and lowest odd level on the fly.
 
@@ -737,9 +733,7 @@ func (s *storage) reorderResolvedLevels() {
 	highestLevel := 0
 	lowestOddLevel := explicitLevelLimit
 
-	for idx := 0; idx < maxLen; idx++ {
-		ch := chars[idx]
-
+	for idx, ch := range chars {
 		// calc the levels
 		charLevel := ch.level
 		if charLevel > highestLevel {
@@ -750,7 +744,7 @@ func (s *storage) reorderResolvedLevels() {
 			lowestOddLevel = charLevel
 		}
 
-		if ch.orig == bidi.B || idx == maxLen-1 {
+		if ch.orig == bidi.B || idx == len(chars)-1 {
 			lineEnd = idx
 			// omit line breaks
 			if ch.orig == bidi.B {
