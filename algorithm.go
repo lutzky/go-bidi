@@ -2,8 +2,6 @@
 // TODO(lutzky): Fix description
 package bidi
 
-//go:generate go run gen-bidirectional.go
-
 import (
 	"fmt"
 	"log"
