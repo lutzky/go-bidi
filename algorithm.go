@@ -107,34 +107,31 @@ type Storage struct {
 var X6_IGNORED = X2_X5_MAPPINGS_keys().plus(bidi.BN, bidi.PDF, bidi.B)
 var X9_REMOVED = X2_X5_MAPPINGS_keys().plus(bidi.BN, bidi.PDF)
 
-func X2_X5_MAPPINGS_keys() stringSet {
-	result := stringSet{}
+func X2_X5_MAPPINGS_keys() classSet {
+	result := classSet{}
 	for k := range X2_X5_MAPPINGS {
 		result[k] = true
 	}
 	return result
 }
 
-// TODO(lutzky): Start stringSet stuff
-type stringSet map[bidi.Class]bool
+type classSet map[bidi.Class]bool
 
-func newStringSet(s ...bidi.Class) stringSet {
-	result := stringSet{}
+func newClassSet(s ...bidi.Class) classSet {
+	result := classSet{}
 	for _, x := range s {
 		result[x] = true
 	}
 	return result
 }
 
-func (ss stringSet) plus(s ...bidi.Class) stringSet {
-	result := newStringSet(s...)
+func (ss classSet) plus(s ...bidi.Class) classSet {
+	result := newClassSet(s...)
 	for x := range ss {
 		result[x] = true
 	}
 	return result
 }
-
-// TODO(lutzky): End stringSet stuff
 
 func _embedding_direction(x int) bidi.Direction {
 	return []bidi.Direction{bidi.LeftToRight, bidi.RightToLeft}[x%2]
@@ -491,7 +488,7 @@ func resolve_weak_types(storage *Storage, debug bool) {
 			}
 
 			// update prev_strong if needed
-			if newStringSet(bidi.R, bidi.L, bidi.AL)[bidi_type] {
+			if newClassSet(bidi.R, bidi.L, bidi.AL)[bidi_type] {
 				prev_strong = bidi_type
 			}
 
@@ -546,7 +543,7 @@ func resolve_weak_types(storage *Storage, debug bool) {
 
 		// W6. Otherwise, separators and terminators change to Other Neutral.
 		for i, _ch := range chars {
-			if newStringSet(bidi.ET, bidi.ES, bidi.CS)[_ch.Type] {
+			if newClassSet(bidi.ET, bidi.ES, bidi.CS)[_ch.Type] {
 				chars[i].Type = bidi.ON
 			}
 		}
@@ -591,7 +588,7 @@ func resolve_neutral_types(storage *Storage, debug bool) {
 		seq_start := -1
 		for idx := 0; idx < total_chars; idx++ {
 			_ch := chars[idx]
-			if newStringSet(bidi.B, bidi.S, bidi.WS, bidi.ON)[_ch.Type] {
+			if newClassSet(bidi.B, bidi.S, bidi.WS, bidi.ON)[_ch.Type] {
 				// N1. A sequence of neutrals takes the direction of the
 				// surrounding strong text if the text on both sides has the same
 				// direction. European and Arabic numbers act as if they were R
@@ -649,7 +646,7 @@ func resolve_implicit_levels(storage *Storage, debug bool) {
 
 		for i, _ch := range chars {
 			// only those types are allowed at this stage
-			if !newStringSet(bidi.L, bidi.R, bidi.EN, bidi.AL)[_ch.Type] {
+			if !newClassSet(bidi.L, bidi.R, bidi.EN, bidi.AL)[_ch.Type] {
 				panic(bidiClassNames[_ch.Type] + " not allowed here")
 			}
 
@@ -736,7 +733,7 @@ func reorder_resolved_levels(storage *Storage, debug bool) {
 			// 2. Paragraph separators,
 			chars[idx].level = storage.base_level
 			should_reset = true
-		} else if should_reset && newStringSet(bidi.BN, bidi.WS)[_ch.orig] {
+		} else if should_reset && newClassSet(bidi.BN, bidi.WS)[_ch.orig] {
 			// 3. Any sequence of whitespace characters preceding a segment
 			// separator or paragraph separator
 			// 4. Any sequence of white space characters at the end of the
