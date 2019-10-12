@@ -74,16 +74,16 @@ func runTestCase(t *testing.T, input, want string) {
 	t.Helper()
 	var buf bytes.Buffer
 
-	got, err := get_display(input,
+	got, err := getDisplay(input,
 		/*upper_is_rtl=*/ true,
 		/*base_dir=*/ bidi.Neutral,
 		&buf,
 	)
 	if err != nil {
-		t.Fatalf("get_display(%q) returned error: %v\n%s", input, err, buf.String())
+		t.Fatalf("getDisplay(%q) returned error: %v\n%s", input, err, buf.String())
 	}
 	if got != want {
-		t.Fatalf("get_display(%q) = %q; want %q\n%s", input, got, want, buf.String())
+		t.Fatalf("getDisplay(%q) = %q; want %q\n%s", input, got, want, buf.String())
 	}
 }
 
@@ -93,7 +93,7 @@ func TestOverrideBaseDir(t *testing.T) {
 	input := "SHALOM:"
 	want := "MOLAHS:"
 
-	got, err := get_display(input,
+	got, err := getDisplay(input,
 		/*upper_is_rtl=*/ true,
 		/*base_dir=*/ bidi.LeftToRight,
 		/*debug=*/ nil,
@@ -153,23 +153,21 @@ func TestExplicitWithUpperIsRTL(t *testing.T) {
 
 // Test for storage and base levels in case of surrogate pairs
 func TestSurrogate(t *testing.T) {
-	storage := Storage{}
+	s := storage{}
 
 	text := "HELLO \U0001d7f612"
-	get_embedding_levels(
+	s.getEmbeddingLevels(
 		[]rune(text),
-		&storage,
 		/*upper_is_rtl=*/ true,
-		/*debug=*/ nil,
 	)
 
 	// should return 9, not 10 even in --with-unicode=ucs2
-	if len(storage.chars) != 9 {
-		t.Fatalf("len(storage.chars) == %d; want 9", len(storage.chars))
+	if len(s.chars) != 9 {
+		t.Fatalf("len(storage.chars) == %d; want 9", len(s.chars))
 	}
 
 	// Is the expected result ? should be EN
-	_ch := storage.chars[6]
+	_ch := s.chars[6]
 	wantChar := '\U0001d7f6'
 	if _ch.ch != wantChar {
 		t.Errorf("storage.chars[6] = %U; want %U", _ch.ch, wantChar)
@@ -179,7 +177,7 @@ func TestSurrogate(t *testing.T) {
 	}
 
 	want := "\U0001d7f612 OLLEH"
-	got, err := get_display(text, true, bidi.Neutral, nil)
+	got, err := getDisplay(text, true, bidi.Neutral, nil)
 	if err != nil {
 		t.Fatalf("Got error: %v", err)
 	}
@@ -191,6 +189,6 @@ func TestSurrogate(t *testing.T) {
 func BenchmarkSimple(b *testing.B) {
 	input := "לקראת סוף המאה ה-19"
 	for i := 0; i < b.N; i++ {
-		get_display(input, false, bidi.Neutral, nil)
+		getDisplay(input, false, bidi.Neutral, nil)
 	}
 }

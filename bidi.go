@@ -16,6 +16,10 @@
 // License along with this library; if not, write to the Free Software
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA
 
+// Package bidi implements the bidi algorithm for converting logical-order
+// strings to visual-order strings, using the Unicode algorithm. This is a
+// complementary package to golang.org/x/text/unicode, which does not yet
+// contain this functionality.
 package bidi
 
 import (
@@ -24,16 +28,26 @@ import (
 	"golang.org/x/text/unicode/bidi"
 )
 
+// Displayer provides a configurable object for running Display. For typical usage,
+// use the ordinary Display function instead.
 type Displayer struct {
-	UpperIsRtl bool
-	BaseDir    bidi.Direction
-	Debug      io.Writer
+	// Treat uppercase characters as RTL
+	UpperIsRTL bool
+
+	// Base direction. Default is bidi.Neutral
+	BaseDir bidi.Direction
+
+	// If not nil, debug output will be written here
+	Debug io.Writer
 }
 
-func (d Displayer) Display(str string) (_ string, err error) {
-	return get_display(str, d.UpperIsRtl, d.BaseDir, d.Debug)
+// Display returns the visual order for str, which should be in logical order,
+// using the configuration in d.
+func (d Displayer) Display(str string) (string, error) {
+	return getDisplay(str, d.UpperIsRTL, d.BaseDir, d.Debug)
 }
 
+// Display returns the visual order for str, which should be in logical order.
 func Display(str string) (string, error) {
 	return Displayer{
 		BaseDir: bidi.Neutral,

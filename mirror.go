@@ -18,7 +18,7 @@
 
 package bidi
 
-var MIRRORED = map[rune]rune{
+var mirrored = map[rune]rune{
 	'\u0028': '\u0029', // LEFT PARENTHESIS
 	'\u0029': '\u0028', // RIGHT PARENTHESIS
 	'\u003C': '\u003E', // LESS-THAN SIGN
