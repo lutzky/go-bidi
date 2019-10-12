@@ -22,8 +22,7 @@ package bidi
 
 import (
 	"fmt"
-	"log"
-	"os"
+	"io"
 	"runtime"
 	"strconv"
 	"unicode"
@@ -149,8 +148,10 @@ type debug_params struct {
 }
 
 // Display debug information for the storage
-func debug_storage(storage *Storage, params debug_params) {
-	l := log.New(os.Stderr, "", 0)
+func debug_storage(w io.Writer, storage *Storage, params debug_params) {
+	if w == nil {
+		return
+	}
 
 	pc := make([]uintptr, 1)
 	n := runtime.Callers(2, pc)
@@ -160,15 +161,15 @@ func debug_storage(storage *Storage, params debug_params) {
 	frames := runtime.CallersFrames(pc)
 	frame, _ := frames.Next()
 
-	l.Printf("in %s\n", frame.Function)
+	fmt.Fprintf(w, "in %s\n", frame.Function)
 
 	if params.base_info {
-		l.Printf("  base level  : %d", storage.base_level)
-		l.Printf("  base dir    : %s", storage.base_dir)
+		fmt.Fprintf(w, "  base level  : %d\n", storage.base_level)
+		fmt.Fprintf(w, "  base dir    : %s\n", storage.base_dir)
 	}
 
 	if params.runs {
-		l.Printf("  runs        : %+v", storage.runs)
+		fmt.Fprintf(w, "  runs        : %+v\n", storage.runs)
 	}
 
 	if !params.no_chars {
@@ -176,13 +177,13 @@ func debug_storage(storage *Storage, params debug_params) {
 		for _, _ch := range storage.chars {
 			output += string(_ch.ch)
 		}
-		l.Printf(output + "\n")
+		fmt.Fprintf(w, output+"\n")
 
 		output = "  Res. levels : "
 		for _, _ch := range storage.chars {
 			output += strconv.Itoa(_ch.level)
 		}
-		l.Printf(output)
+		fmt.Fprintln(w, output)
 
 		_types := make([]string, len(storage.chars))
 		for i, _ch := range storage.chars {
@@ -199,7 +200,7 @@ func debug_storage(storage *Storage, params debug_params) {
 			for _, _t := range _types {
 				extra_output += string(_t[i])
 			}
-			l.Printf(output, extra_output)
+			fmt.Fprintf(w, output, extra_output)
 		}
 	}
 
@@ -260,7 +261,7 @@ func get_base_level(text []rune, upper_is_rtl bool) int {
 
 // Get the paragraph base embedding level and direction,
 // set the storage to the array of chars
-func get_embedding_levels(text []rune, storage *Storage, upper_is_rtl bool, debug bool) {
+func get_embedding_levels(text []rune, storage *Storage, upper_is_rtl bool, debug io.Writer) {
 	var prev_surrogate rune
 	base_level := storage.base_level
 	var bidi_type bidi.Class
@@ -288,9 +289,7 @@ func get_embedding_levels(text []rune, storage *Storage, upper_is_rtl bool, debu
 			orig:  bidi_type,
 		})
 	}
-	if debug {
-		debug_storage(storage, debug_params{base_info: true})
-	}
+	debug_storage(debug, storage, debug_params{base_info: true})
 }
 
 type levelsType struct {
@@ -308,7 +307,7 @@ func directionToClass(runType bidi.Direction) bidi.Class {
 // Apply X1 to X9 rules of the unicode algorithm.
 //
 // See http://unicode.org/reports/tr9/#Explicit_Levels_and_Directions
-func explicit_embed_and_overrides(storage *Storage, debug bool) {
+func explicit_embed_and_overrides(storage *Storage, debug io.Writer) {
 	overflow_counter := 0
 	almost_overflow_counter := 0
 	directional_override := bidi.Neutral
@@ -392,9 +391,7 @@ func explicit_embed_and_overrides(storage *Storage, debug bool) {
 
 	calc_level_runs(storage)
 
-	if debug {
-		debug_storage(storage, debug_params{runs: true})
-	}
+	debug_storage(debug, storage, debug_params{runs: true})
 }
 
 // Split the storage to run of char types at the same level.
@@ -462,7 +459,7 @@ func calc_level_runs(storage *Storage) {
 // Resolve weak type rules W1 - W3.
 //
 // See: http://unicode.org/reports/tr9/#Resolving_Weak_Types
-func resolve_weak_types(storage *Storage, debug bool) {
+func resolve_weak_types(storage *Storage, debug io.Writer) {
 	for _, run := range storage.runs {
 		prev_strong := directionToClass(run.sor)
 		prev_type := directionToClass(run.sor)
@@ -563,15 +560,13 @@ func resolve_weak_types(storage *Storage, debug bool) {
 		}
 	}
 
-	if debug {
-		debug_storage(storage, debug_params{runs: true})
-	}
+	debug_storage(debug, storage, debug_params{runs: true})
 }
 
 // Resolving neutral types. Implements N1 and N2
 //
 // See: http://unicode.org/reports/tr9/#Resolving_Neutral_Types
-func resolve_neutral_types(storage *Storage, debug bool) {
+func resolve_neutral_types(storage *Storage, debug io.Writer) {
 	for _, run := range storage.runs {
 		start := run.start
 		length := run.length
@@ -631,15 +626,13 @@ func resolve_neutral_types(storage *Storage, debug bool) {
 		}
 	}
 
-	if debug {
-		debug_storage(storage, debug_params{})
-	}
+	debug_storage(debug, storage, debug_params{})
 }
 
 // Resolving implicit levels (I1, I2)
 //
 // See: http://unicode.org/reports/tr9/#Resolving_Implicit_Levels
-func resolve_implicit_levels(storage *Storage, debug bool) {
+func resolve_implicit_levels(storage *Storage, debug io.Writer) {
 	for _, run := range storage.runs {
 		start, length := run.start, run.length
 		chars := storage.chars[start : start+length]
@@ -669,9 +662,7 @@ func resolve_implicit_levels(storage *Storage, debug bool) {
 		}
 	}
 
-	if debug {
-		debug_storage(storage, debug_params{runs: true})
-	}
+	debug_storage(debug, storage, debug_params{runs: true})
 }
 
 func reverse(x []Char) {
@@ -718,7 +709,7 @@ func reverse_contiguous_sequence(chars []Char, line_start, line_end, highest_lev
 }
 
 // L1 and L2 rules
-func reorder_resolved_levels(storage *Storage, debug bool) {
+func reorder_resolved_levels(storage *Storage, debug io.Writer) {
 	// Applies L1.
 
 	should_reset := true
@@ -784,15 +775,13 @@ func reorder_resolved_levels(storage *Storage, debug bool) {
 		}
 	}
 
-	if debug {
-		debug_storage(storage, debug_params{})
-	}
+	debug_storage(debug, storage, debug_params{})
 }
 
 // Applies L4: mirroring
 //
 // See: http://unicode.org/reports/tr9/#L4
-func apply_mirroring(storage *Storage, debug bool) {
+func apply_mirroring(storage *Storage, debug io.Writer) {
 	// L4. A character is depicted by a mirrored glyph if and only if (a) the
 	// resolved directionality of that character is R, and (b) the
 	// Bidi_Mirrored property value of that character is true.
@@ -805,9 +794,7 @@ func apply_mirroring(storage *Storage, debug bool) {
 		}
 	}
 
-	if debug {
-		debug_storage(storage, debug_params{})
-	}
+	debug_storage(debug, storage, debug_params{})
 }
 
 // Accepts a utf-8 string.
@@ -817,12 +804,12 @@ func apply_mirroring(storage *Storage, debug bool) {
 //
 // Set `base_dir` to "L" or "R" to override the calculated base_level.
 //
-// Set `debug` to true to display (using sys.stderr) the steps taken with the
-// algorithm.
+// If debug is not nil, the steps taken with the algorithm will be written
+// to it.
 //
 // Returns the display layout, either as unicode or `encoding` encoded
 // string.
-func get_display(str string, upper_is_rtl bool, base_dir string, debug bool) (_ string, err error) {
+func get_display(str string, upper_is_rtl bool, base_dir string, debug io.Writer) (_ string, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("%v", r)

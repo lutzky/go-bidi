@@ -19,6 +19,7 @@
 package bidi
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 
@@ -51,7 +52,9 @@ func TestImplicitWithUpperIsRTL(t *testing.T) {
 		{`-2 CELSIUS IS COLD`, `DLOC SI SUISLEC 2-`},
 	}
 
-	runTestCases(t, testCases)
+	for _, tc := range testCases {
+		runTestCase(t, tc.input, tc.want)
+	}
 }
 
 // Test for the case reported in
@@ -62,30 +65,25 @@ func TestMixedHebrewNumbersIssue10(t *testing.T) {
 		{"1 2 3 123 \u05E0\u05D9\u05E1\u05D9\u05D5\u05DF", "\u05DF\u05D5\u05D9\u05E1\u05D9\u05E0 123 3 2 1"},
 	}
 
-	runTestCases(t, testCases)
+	for _, tc := range testCases {
+		runTestCase(t, tc.input, tc.want)
+	}
 }
 
-func runTestCases(t *testing.T, testCases []testCase) {
+func runTestCase(t *testing.T, input, want string) {
 	t.Helper()
+	var buf bytes.Buffer
 
-	f := func(s string, debug bool) (string, error) {
-		return get_display(s,
-			/*upper_is_rtl=*/ true,
-			/*base_dir=*/ "",
-			debug,
-		)
+	got, err := get_display(input,
+		/*upper_is_rtl=*/ true,
+		/*base_dir=*/ "",
+		&buf,
+	)
+	if err != nil {
+		t.Fatalf("get_display(%q) returned error: %v\n%s", input, err, buf.String())
 	}
-
-	for _, tc := range testCases {
-		got, err := f(tc.input, false)
-		if err != nil {
-			f(tc.input, true)
-			t.Fatalf("get_display(%q) returned error", tc.input)
-		}
-		if got != tc.want {
-			f(tc.input, true)
-			t.Fatalf("get_display(%q) = %q; want %q", tc.input, got, tc.want)
-		}
+	if got != want {
+		t.Fatalf("get_display(%q) = %q; want %q\n%s", input, got, want, buf.String())
 	}
 }
 
@@ -98,7 +96,7 @@ func TestOverrideBaseDir(t *testing.T) {
 	got, err := get_display(input,
 		/*upper_is_rtl=*/ true,
 		/*base_dir=*/ "L",
-		/*debug=*/ false,
+		/*debug=*/ nil,
 	)
 
 	if err != nil {
@@ -149,18 +147,7 @@ func TestExplicitWithUpperIsRTL(t *testing.T) {
 			input = strings.ReplaceAll(input, from, to)
 			want = strings.ReplaceAll(want, from, to)
 		}
-		got, err := get_display(
-			input,
-			/*upper_is_rtl=*/ true,
-			/*base_dir=*/ "",
-			/*debug=*/ false,
-		)
-		if err != nil {
-			t.Fatalf("Error converting %q: %v", tc.input, err)
-		}
-		if got != want {
-			t.Fatalf("Converting %q got %q; wanted %q", input, got, want)
-		}
+		runTestCase(t, input, want)
 	}
 }
 
@@ -173,7 +160,7 @@ func TestSurrogate(t *testing.T) {
 		[]rune(text),
 		&storage,
 		/*upper_is_rtl=*/ true,
-		/*debug=*/ false,
+		/*debug=*/ nil,
 	)
 
 	// should return 9, not 10 even in --with-unicode=ucs2
@@ -192,7 +179,7 @@ func TestSurrogate(t *testing.T) {
 	}
 
 	want := "\U0001d7f612 OLLEH"
-	got, err := get_display(text, true, "", false)
+	got, err := get_display(text, true, "", nil)
 	if err != nil {
 		t.Fatalf("Got error: %v", err)
 	}
@@ -204,6 +191,6 @@ func TestSurrogate(t *testing.T) {
 func BenchmarkSimple(b *testing.B) {
 	input := "לקראת סוף המאה ה-19"
 	for i := 0; i < b.N; i++ {
-		get_display(input, false, "", false)
+		get_display(input, false, "", nil)
 	}
 }
