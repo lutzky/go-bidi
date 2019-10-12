@@ -101,7 +101,7 @@ type storage struct {
 	runs        []run
 }
 
-// Added 'B' so X6 won't execute in that case and X8 will run it's course
+// Added 'B' so X6 won't execute in that case and X8 will run its course
 var x6Ignored = x2x5MappingsKeys().plus(bidi.BN, bidi.PDF, bidi.B)
 var x9Removed = x2x5MappingsKeys().plus(bidi.BN, bidi.PDF)
 
@@ -146,7 +146,6 @@ type debugParams struct {
 	runs     bool
 }
 
-// Display debug information for the storage
 func (s *storage) debug(params debugParams) {
 	w := s.debugWriter
 	if w == nil {
@@ -211,15 +210,11 @@ func bidirectional(r rune) bidi.Class {
 	return prop.Class()
 }
 
-/*
-Get the paragraph base embedding level. Returns 0 for LTR,
-1 for RTL.
-
-`text` a unicode object.
-
-Set `upperIsRTL` to true to treat upper case chars as strong bidi.R
-for debugging (default: false).
-*/
+// getBaseLevel gets the paragraph base embedding level. Returns 0 for LTR,
+// 1 for RTL.
+//
+// Set `upperIsRTL` to true to treat upper case chars as strong
+// bidi.RightToLEft for debugging, or false for normal operation.
 func getBaseLevel(text []rune, upperIsRTL bool) int {
 	baseLevel := -1
 	var prevSurrogate rune
@@ -778,7 +773,7 @@ func (s *storage) reorderResolvedLevels() {
 	s.debug(debugParams{})
 }
 
-// Applies L4: mirroring
+// applyMirroring applies L4: mirroring
 //
 // See: http://unicode.org/reports/tr9/#L4
 func (s *storage) applyMirroring() {
@@ -796,18 +791,10 @@ func (s *storage) applyMirroring() {
 	s.debug(debugParams{})
 }
 
-// Accepts a utf-8 string.
-//
-// Set `upperIsRTL` to true to treat upper case chars as strong bidi.R
-// for debugging (default: false).
-//
-// Set `baseDir` to bidi.LeftToRight or bidi.RightToLeft to override the calculated baseLevel.
+// getDisplay performs the unicode logical-to-visual algorithm on str.
 //
 // If debug is not nil, the steps taken with the algorithm will be written
 // to it.
-//
-// Returns the display layout, either as unicode or `encoding` encoded
-// string.
 func getDisplay(str string, upperIsRTL bool, baseDir bidi.Direction, debug io.Writer) (_ string, err error) {
 	defer func() {
 		if r := recover(); r != nil {
