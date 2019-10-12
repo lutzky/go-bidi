@@ -76,7 +76,7 @@ func runTestCase(t *testing.T, input, want string) {
 
 	got, err := get_display(input,
 		/*upper_is_rtl=*/ true,
-		/*base_dir=*/ "",
+		/*base_dir=*/ bidi.Neutral,
 		&buf,
 	)
 	if err != nil {
@@ -95,7 +95,7 @@ func TestOverrideBaseDir(t *testing.T) {
 
 	got, err := get_display(input,
 		/*upper_is_rtl=*/ true,
-		/*base_dir=*/ "L",
+		/*base_dir=*/ bidi.LeftToRight,
 		/*debug=*/ nil,
 	)
 
@@ -179,7 +179,7 @@ func TestSurrogate(t *testing.T) {
 	}
 
 	want := "\U0001d7f612 OLLEH"
-	got, err := get_display(text, true, "", nil)
+	got, err := get_display(text, true, bidi.Neutral, nil)
 	if err != nil {
 		t.Fatalf("Got error: %v", err)
 	}
@@ -191,6 +191,6 @@ func TestSurrogate(t *testing.T) {
 func BenchmarkSimple(b *testing.B) {
 	input := "לקראת סוף המאה ה-19"
 	for i := 0; i < b.N; i++ {
-		get_display(input, false, "", nil)
+		get_display(input, false, bidi.Neutral, nil)
 	}
 }

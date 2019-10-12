@@ -802,14 +802,14 @@ func apply_mirroring(storage *Storage, debug io.Writer) {
 // Set `upper_is_rtl` to true to treat upper case chars as strong bidi.R
 // for debugging (default: false).
 //
-// Set `base_dir` to "L" or "R" to override the calculated base_level.
+// Set `base_dir` to bidi.LeftToRight or bidi.RightToLeft to override the calculated base_level.
 //
 // If debug is not nil, the steps taken with the algorithm will be written
 // to it.
 //
 // Returns the display layout, either as unicode or `encoding` encoded
 // string.
-func get_display(str string, upper_is_rtl bool, base_dir string, debug io.Writer) (_ string, err error) {
+func get_display(str string, upper_is_rtl bool, base_dir bidi.Direction, debug io.Writer) (_ string, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("%v", r)
@@ -822,15 +822,10 @@ func get_display(str string, upper_is_rtl bool, base_dir string, debug io.Writer
 
 	text := []rune(str)
 
-	if base_dir == "" {
-		base_level = get_base_level(text, upper_is_rtl)
+	if base_dir == bidi.LeftToRight || base_dir == bidi.RightToLeft {
+		base_level = PARAGRAPH_LEVELS[directionToClass(base_dir)]
 	} else {
-		// TODO(lutzky): This is ugly, base_dir should be specified as bidi.Direction
-		baseDirection := bidi.LeftToRight
-		if base_dir == "R" {
-			baseDirection = bidi.RightToLeft
-		}
-		base_level = PARAGRAPH_LEVELS[directionToClass(baseDirection)]
+		base_level = get_base_level(text, upper_is_rtl)
 	}
 
 	storage.base_level = base_level
