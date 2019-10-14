@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"io"
 	"runtime"
-	"strconv"
+	"strings"
 	"unicode"
 
 	"golang.org/x/text/unicode/bidi"
@@ -144,21 +144,27 @@ type debugParams struct {
 	runs     bool
 }
 
-func (s *storage) debug(params debugParams) {
-	w := s.debugWriter
-	if w == nil {
-		return
-	}
-
+func getFunctionName() string {
 	pc := make([]uintptr, 1)
-	n := runtime.Callers(2, pc)
+	n := runtime.Callers(3, pc)
 	if n == 0 {
 		panic("Failed to get name of calling function")
 	}
 	frames := runtime.CallersFrames(pc)
 	frame, _ := frames.Next()
 
-	fmt.Fprintf(w, "in %s\n", frame.Function)
+	parts := strings.Split(frame.Function, ".")
+
+	return parts[len(parts)-1]
+}
+
+func (s *storage) debug(params debugParams) {
+	w := s.debugWriter
+	if w == nil {
+		return
+	}
+
+	fmt.Fprintf(w, "in %s\n", getFunctionName())
 
 	if params.baseInfo {
 		fmt.Fprintf(w, "  base level  : %d\n", s.baseLevel)
@@ -170,37 +176,46 @@ func (s *storage) debug(params debugParams) {
 	}
 
 	if !params.noChars {
-		output := "  Chars       : "
-		for _, ch := range s.chars {
-			output += string(ch.r)
+		runes := make([]rune, len(s.chars))
+		for i, ch := range s.chars {
+			runes[i] = ch.r
 		}
-		fmt.Fprintf(w, output+"\n")
+		fmt.Fprintf(w, "  Chars       : %s\n", string(runes))
 
-		output = "  Res. levels : "
-		for _, ch := range s.chars {
-			output += strconv.Itoa(ch.level)
+		for i, ch := range s.chars {
+			runes[i] = '0' + rune(ch.level)
 		}
-		fmt.Fprintln(w, output)
+		fmt.Fprintf(w, "  Res. levels : %s\n", string(runes))
 
+		maxTypeNameLen := 0
 		types := make([]string, len(s.chars))
 		for i, ch := range s.chars {
-			types[i] = fmt.Sprintf("%-3s", bidiClassNames[ch.Type])
+			types[i] = bidiClassNames[ch.Type]
+			if len(types[i]) > maxTypeNameLen {
+				maxTypeNameLen = len(types[i])
+			}
 		}
 
-		for i := 0; i < 3; i++ {
+		for i := 0; i < maxTypeNameLen; i++ {
+			var output string
+
 			if i != 0 {
-				output = "                %s\n"
+				output = "               [%s]\n"
 			} else {
-				output = "  Res. types  : %s\n"
+				output = "  Res. types  :[%s]\n"
 			}
-			extraOutput := ""
-			for _, t := range types {
-				extraOutput += string(t[i])
+			extraOutput := make([]rune, len(types))
+			for j, t := range types {
+				if len(t) > i {
+					extraOutput[j] = rune(t[i])
+				} else {
+					extraOutput[j] = ' '
+				}
 			}
-			fmt.Fprintf(w, output, extraOutput)
+			fmt.Fprintf(w, output, string(extraOutput))
 		}
+		fmt.Fprintln(w, "")
 	}
-
 }
 
 func bidirectional(r rune) bidi.Class {

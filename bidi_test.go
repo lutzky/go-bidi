@@ -20,6 +20,8 @@ package bidi
 
 import (
 	"bytes"
+	"fmt"
+	"os"
 	"strings"
 	"testing"
 
@@ -191,4 +193,65 @@ func BenchmarkSimple(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		getDisplay(input, false, bidi.Neutral, nil)
 	}
+}
+
+func ExampleDisplay() {
+	visual, _ := Display("Hello, עולם")
+	fmt.Println(visual)
+	// Output: Hello, םלוע
+}
+
+func ExampleDisplayer_Display() {
+	d := Displayer{
+		UpperIsRTL: true,
+		Debug:      os.Stdout,
+	}
+	visual, _ := d.Display("hello, WORLD")
+	fmt.Println(visual)
+
+	// Output:
+	// in getEmbeddingLevels
+	//   base level  : 0
+	//   base dir    : L
+	//   Chars       : hello, WORLD
+	//   Res. levels : 000000000000
+	//   Res. types  :[LLLLLCWRRRRR]
+	//                [     SS     ]
+	//
+	// in explicitEmbedAndOverrides
+	//   runs        : [{sor:0 eor:0 start:0 length:12 Type:1}]
+	//   Chars       : hello, WORLD
+	//   Res. levels : 000000000000
+	//   Res. types  :[LLLLLCWRRRRR]
+	//                [     SS     ]
+	//
+	// in resolveWeakTypes
+	//   runs        : [{sor:0 eor:0 start:0 length:12 Type:1}]
+	//   Chars       : hello, WORLD
+	//   Res. levels : 000000000000
+	//   Res. types  :[LLLLLOWRRRRR]
+	//                [     NS     ]
+	//
+	// in resolveNeutralTypes
+	//   Chars       : hello, WORLD
+	//   Res. levels : 000000000000
+	//   Res. types  :[LLLLLLLRRRRR]
+	//
+	// in resolveImplicitLevels
+	//   runs        : [{sor:0 eor:0 start:0 length:12 Type:1}]
+	//   Chars       : hello, WORLD
+	//   Res. levels : 000000011111
+	//   Res. types  :[LLLLLLLRRRRR]
+	//
+	// in reorderResolvedLevels
+	//   Chars       : hello, DLROW
+	//   Res. levels : 000000011111
+	//   Res. types  :[LLLLLLLRRRRR]
+	//
+	// in applyMirroring
+	//   Chars       : hello, DLROW
+	//   Res. levels : 000000011111
+	//   Res. types  :[LLLLLLLRRRRR]
+	//
+	// hello, DLROW
 }
