@@ -3,7 +3,7 @@ sudo: false
 go:
   # Support two major versions back; see policy at
   # https://golang.org/doc/devel/release.html#policy
-  - "1.11"
+  # - "1.11" go1.11 not supported because it lacks strings.ReplaceAll
   - "1.12"
   - "1.13"
   - master
