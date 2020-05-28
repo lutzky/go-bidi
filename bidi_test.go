@@ -23,6 +23,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"testing/quick"
 
 	"golang.org/x/text/unicode/bidi"
 )
@@ -184,6 +185,81 @@ func TestSurrogate(t *testing.T) {
 	}
 	if got != want {
 		t.Errorf("got %q; want %q", got, want)
+	}
+}
+
+const (
+	runesLatin   = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	runesNumbers = "0123456789"
+	runesSymbols = "-=_+./,;'\"`~|"
+	runesHebrew  = "אבגדהוזחטיכךלמםנןסעפףצץקרשת"
+
+	runesAll = runesLatin + runesNumbers + runesSymbols + runesHebrew
+)
+
+func wellFormedString(codepoints []uint8, allowedCharacters string) string {
+	allowedRunes := []rune(allowedCharacters)
+
+	runes := make([]rune, len(codepoints))
+
+	for i, n := range codepoints {
+		runes[i] = allowedRunes[n%uint8(len(allowedRunes))]
+	}
+
+	return string(runes)
+}
+
+func TestSameLength(t *testing.T) {
+	var failureString string
+	f := func(codepoints []uint8) bool {
+		s := wellFormedString(codepoints, runesAll)
+		d, err := Display(s)
+		if err != nil {
+			t.Error(err)
+			return false
+		}
+
+		if len(d) != len(s) {
+			failureString = s
+			return false
+		}
+
+		return true
+	}
+	if err := quick.Check(f, nil); err != nil {
+		t.Error(err)
+		got, _ := Display(failureString)
+		t.Errorf("Failure:\n%q (%d)->\n%q (%d)", failureString, len(failureString), got, len(got))
+	}
+}
+
+func TestFlipTwice(t *testing.T) {
+	var failureString string
+	f := func(codepoints []uint8) bool {
+		s := wellFormedString(codepoints, runesHebrew+runesNumbers)
+		once, err := Display(s)
+		if err != nil {
+			t.Error(err)
+			return false
+		}
+		twice, err := Display(once)
+		if err != nil {
+			t.Error(err)
+			return false
+		}
+
+		if twice != s {
+			failureString = s
+			return false
+		}
+
+		return true
+	}
+	if err := quick.Check(f, nil); err != nil {
+		t.Error(err)
+		once, _ := Display(failureString)
+		got, _ := Display(once)
+		t.Errorf("Failure:\n%q ->\n%q ->\n%q", failureString, once, got)
 	}
 }
 
